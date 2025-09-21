@@ -1,7 +1,7 @@
 const std = @import("std");
 const rl = @import("raylib");
 const Color = rl.Color;
-const data = @import("data.zig");
+const d = @import("data.zig");
 
 pub fn main() anyerror!void {
     try gameStartup();
@@ -17,55 +17,55 @@ pub fn main() anyerror!void {
 
 pub fn gameStartup() anyerror!void {
     rl.initWindow(
-        data.screen_width,
-        data.screen_height,
+        d.screen_width,
+        d.screen_height,
         "AutoKill",
     );
     rl.initAudioDevice();
 
     const image: rl.Image = try rl.loadImage("tilesheet.png");
-    data.tilesheet = try rl.loadTextureFromImage(image);
+    d.tilesheet = try rl.loadTextureFromImage(image);
     rl.unloadImage(image);
 
-    data.sounds[0] = try rl.loadSound("Audio/footstep00.ogg");
-    data.music[0] = try rl.loadMusicStream("Music/metal1.mp3");
+    // d.sounds[0] = try rl.loadSound("Audio/footstep00.ogg");
+    d.music[0] = try rl.loadMusicStream("Music/metal1.mp3");
 
-    data.map_texture = try rl.loadRenderTexture(data.map_width * data.tile_width, data.map_height * data.tile_height);
+    d.map_texture = try rl.loadRenderTexture(d.map_width * d.tile_width, d.map_height * d.tile_height);
 
-    data.fog_of_war = try rl.loadRenderTexture(data.map_width, data.map_height);
-    rl.setTextureFilter(data.fog_of_war.texture, .bilinear);
+    d.fog_of_war = try rl.loadRenderTexture(d.map_width, d.map_height);
+    rl.setTextureFilter(d.fog_of_war.texture, .bilinear);
 
     rl.setTargetFPS(60);
 
-    try data.tileTypeSpriteIndex.put(.nothing, 18);
-    try data.tileTypeSpriteIndex.put(.floor, 309);
-    try data.tileTypeSpriteIndex.put(.wall, 469);
+    try d.tileTypeSpriteIndex.put(.nothing, 18);
+    try d.tileTypeSpriteIndex.put(.floor, 309);
+    try d.tileTypeSpriteIndex.put(.wall, 469);
 
     generateConnectedRooms();
 
-    data.player = data.Entity{
-        .x = data.rooms[0].x + @divTrunc(data.rooms[0].width, 2),
-        .y = data.rooms[0].y + @divTrunc(data.rooms[0].height, 2),
+    d.player = d.Entity{
+        .x = d.rooms[0].x + @divTrunc(d.rooms[0].width, 2),
+        .y = d.rooms[0].y + @divTrunc(d.rooms[0].height, 2),
         .fov = 6.55,
     };
 
     for (0..5) |i| {
-        try data.creatures.append(data.allocator, data.Entity{ .x = data.rooms[1].x * data.tile_width + @as(i32, @intCast(i)) * data.tile_width, .y = data.rooms[1].y * data.tile_height + @as(i32, @intCast(i)) * data.tile_height, .fov = 0.0 });
+        try d.creatures.append(d.allocator, d.Entity{ .x = d.rooms[1].x * d.tile_width + @as(i32, @intCast(i)) * d.tile_width, .y = d.rooms[1].y * d.tile_height + @as(i32, @intCast(i)) * d.tile_height, .fov = 0.0 });
     }
 
-    data.camera = rl.Camera2D{ .target = rl.Vector2{ .x = @as(f32, @floatFromInt(data.player.x * data.tile_width)), .y = @as(f32, @floatFromInt(data.player.y * data.tile_height)) }, .offset = rl.Vector2{ .x = @as(f32, @floatFromInt(data.screen_width / 2)) - data.tile_width * 0.5, .y = @as(f32, @floatFromInt(data.screen_height / 2)) - data.tile_height * 0.5 }, .rotation = 0.0, .zoom = 1.0 };
+    d.camera = rl.Camera2D{ .target = rl.Vector2{ .x = @as(f32, @floatFromInt(d.player.x * d.tile_width)), .y = @as(f32, @floatFromInt(d.player.y * d.tile_height)) }, .offset = rl.Vector2{ .x = @as(f32, @floatFromInt(d.screen_width / 2)) - d.tile_width * 0.5, .y = @as(f32, @floatFromInt(d.screen_height / 2)) - d.tile_height * 0.5 }, .rotation = 0.0, .zoom = 1.0 };
 
-    rl.playMusicStream(data.music[0]);
+    rl.playMusicStream(d.music[0]);
 }
 
 pub fn gameUpdate() anyerror!void {
-    rl.updateMusicStream(data.music[0]);
+    rl.updateMusicStream(d.music[0]);
 
-    const fov_to_int = @as(i32, @intFromFloat(data.player.fov)) + 2;
+    const fov_to_int = @as(i32, @intFromFloat(d.player.fov)) + 2;
 
-    var start_x = data.player.x - fov_to_int;
+    var start_x = d.player.x - fov_to_int;
 
-    var start_y = data.player.y - fov_to_int;
+    var start_y = d.player.y - fov_to_int;
 
     if (start_x < 0) {
         start_x = 0;
@@ -75,10 +75,10 @@ pub fn gameUpdate() anyerror!void {
         start_y = 0;
     }
 
-    for (@abs(start_x)..@abs(data.player.x + fov_to_int)) |x| {
-        for (@abs(start_y)..@abs(data.player.y + fov_to_int)) |y| {
-            if (insideMap(@as(i32, @intCast(x)), @as(i32, @intCast(y))) and insideCircle(@floatFromInt(data.player.x), @floatFromInt(data.player.y), @floatFromInt(x), @floatFromInt(y), data.player.fov)) {
-                try data.tiles_seen.put(@abs(y * data.map_width + x), {});
+    for (@abs(start_x)..@abs(d.player.x + fov_to_int)) |x| {
+        for (@abs(start_y)..@abs(d.player.y + fov_to_int)) |y| {
+            if (insideMap(@as(i32, @intCast(x)), @as(i32, @intCast(y))) and insideCircle(@floatFromInt(d.player.x), @floatFromInt(d.player.y), @floatFromInt(x), @floatFromInt(y), d.player.fov)) {
+                try d.tiles_seen.put(@abs(y * d.map_width + x), {});
             }
         }
     }
@@ -106,51 +106,51 @@ pub fn gameUpdate() anyerror!void {
     if (rl.isKeyPressed(.e)) {
         generateConnectedRooms();
 
-        data.player.x = data.rooms[0].x + @divTrunc(data.rooms[0].width, 2);
-        data.player.y = data.rooms[0].y + @divTrunc(data.rooms[0].height, 2);
+        d.player.x = d.rooms[0].x + @divTrunc(d.rooms[0].width, 2);
+        d.player.y = d.rooms[0].y + @divTrunc(d.rooms[0].height, 2);
     }
 
     const wheel = rl.getMouseWheelMove();
 
     if (wheel != 0) {
         const zoomIncrement = 0.125;
-        data.camera.zoom += (wheel * zoomIncrement);
+        d.camera.zoom += (wheel * zoomIncrement);
 
-        if (data.camera.zoom < 0.125) {
-            data.camera.zoom = 0.125;
+        if (d.camera.zoom < 0.125) {
+            d.camera.zoom = 0.125;
         }
-        if (data.camera.zoom > 5.0) {
-            data.camera.zoom = 5.0;
+        if (d.camera.zoom > 5.0) {
+            d.camera.zoom = 5.0;
         }
     }
 
-    data.camera.target = rl.Vector2{ .x = @as(f32, @floatFromInt(data.player.x * data.tile_width)), .y = @as(f32, @floatFromInt(data.player.y * data.tile_height)) };
-    data.camera.offset = rl.Vector2{ .x = @as(f32, @floatFromInt(data.screen_width / 2)) - data.tile_width * data.camera.zoom * 0.5, .y = @as(f32, @floatFromInt(data.screen_height / 2)) - data.tile_height * data.camera.zoom * 0.5 };
+    d.camera.target = rl.Vector2{ .x = @as(f32, @floatFromInt(d.player.x * d.tile_width)), .y = @as(f32, @floatFromInt(d.player.y * d.tile_height)) };
+    d.camera.offset = rl.Vector2{ .x = @as(f32, @floatFromInt(d.screen_width / 2)) - d.tile_width * d.camera.zoom * 0.5, .y = @as(f32, @floatFromInt(d.screen_height / 2)) - d.tile_height * d.camera.zoom * 0.5 };
 }
 
 pub fn gameRender() void {
-    rl.beginTextureMode(data.fog_of_war);
+    rl.beginTextureMode(d.fog_of_war);
     rl.clearBackground(.blank);
 
     // render visible part of map tile by tile
 
-    var start_x = data.player.x - 80;
-    var end_x = data.player.x + 80;
+    var start_x = d.player.x - 80;
+    var end_x = d.player.x + 80;
 
-    var start_y = data.player.y - 50;
-    var end_y = data.player.y + 50;
+    var start_y = d.player.y - 50;
+    var end_y = d.player.y + 50;
 
     if (start_x < 0) {
         start_x = 0;
     }
-    if (end_x > data.map_width) {
-        end_x = data.map_width;
+    if (end_x > d.map_width) {
+        end_x = d.map_width;
     }
     if (start_y < 0) {
         start_y = 0;
     }
-    if (end_y > data.map_height) {
-        end_y = data.map_height;
+    if (end_y > d.map_height) {
+        end_y = d.map_height;
     }
 
     var x = start_x;
@@ -158,8 +158,8 @@ pub fn gameRender() void {
     while (x <= end_x) {
         var y = start_y;
         while (y <= end_y) {
-            if (!insideCircle(@floatFromInt(data.player.x), @floatFromInt(data.player.y), @floatFromInt(x), @floatFromInt(y), data.player.fov)) {
-                if (x > 0 and y > 0 and data.tiles_seen.contains(@abs(y) * data.map_width + @abs(x))) {
+            if (!insideCircle(@floatFromInt(d.player.x), @floatFromInt(d.player.y), @floatFromInt(x), @floatFromInt(y), d.player.fov)) {
+                if (x > 0 and y > 0 and d.tiles_seen.contains(@abs(y) * d.map_width + @abs(x))) {
                     rl.drawRectangle(@intCast(x), @intCast(y), 1, 1, rl.fade(.black, 0.5));
                 } else {
                     rl.drawRectangle(@intCast(x), @intCast(y), 1, 1, .black);
@@ -209,7 +209,7 @@ pub fn gameRender() void {
 
     rl.beginDrawing();
     rl.clearBackground(Color.black);
-    rl.beginMode2D(data.camera);
+    rl.beginMode2D(d.camera);
 
     // render visible part of map tile by tile
     // var tile: Tile = undefined;
@@ -267,90 +267,90 @@ pub fn gameRender() void {
     // }
 
     // render map
-    const source_rect_map = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = @as(f32, @floatFromInt(data.map_texture.texture.width)), .height = -@as(f32, @floatFromInt(data.map_texture.texture.height)) };
-    const dest_rect_map = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = @as(f32, @floatFromInt(data.map_width * data.tile_width)), .height = @as(f32, @floatFromInt(data.map_height * data.tile_height)) };
+    const source_rect_map = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = @as(f32, @floatFromInt(d.map_texture.texture.width)), .height = -@as(f32, @floatFromInt(d.map_texture.texture.height)) };
+    const dest_rect_map = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = @as(f32, @floatFromInt(d.map_width * d.tile_width)), .height = @as(f32, @floatFromInt(d.map_height * d.tile_height)) };
     const origin_map = rl.Vector2{ .x = 0, .y = 0 };
-    rl.drawTexturePro(data.map_texture.texture, source_rect_map, dest_rect_map, origin_map, 0.0, .white);
+    rl.drawTexturePro(d.map_texture.texture, source_rect_map, dest_rect_map, origin_map, 0.0, .white);
 
     // render creatures
-    for (data.creatures.items) |creature| {
+    for (d.creatures.items) |creature| {
         drawTile(@as(f32, @floatFromInt(creature.x)), @as(f32, @floatFromInt(creature.y)), 8, 94);
     }
 
     // render player
-    drawTile(data.camera.target.x, data.camera.target.y, 36, 84);
-    drawTile(data.camera.target.x, data.camera.target.y, 5, 80);
-    drawTile(data.camera.target.x, data.camera.target.y, 50, 82);
-    drawTile(data.camera.target.x, data.camera.target.y, 34, 90);
+    drawTile(d.camera.target.x, d.camera.target.y, 36, 84);
+    drawTile(d.camera.target.x, d.camera.target.y, 5, 80);
+    drawTile(d.camera.target.x, d.camera.target.y, 50, 82);
+    drawTile(d.camera.target.x, d.camera.target.y, 34, 90);
 
-    const source_rect_fog = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = @as(f32, @floatFromInt(data.fog_of_war.texture.width)), .height = -@as(f32, @floatFromInt(data.fog_of_war.texture.height)) };
+    const source_rect_fog = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = @as(f32, @floatFromInt(d.fog_of_war.texture.width)), .height = -@as(f32, @floatFromInt(d.fog_of_war.texture.height)) };
 
-    rl.drawTexturePro(data.fog_of_war.texture, source_rect_fog, dest_rect_map, origin_map, 0.0, .white);
+    rl.drawTexturePro(d.fog_of_war.texture, source_rect_fog, dest_rect_map, origin_map, 0.0, .white);
 
     rl.endMode2D();
 
     rl.drawRectangle(5, 5, 330, 120, Color.fade(Color.sky_blue, 0.5));
     rl.drawRectangleLines(5, 5, 330, 120, Color.blue);
 
-    rl.drawText(rl.textFormat("Camera Target: %06.2f , %06.2f", .{ data.camera.target.x, data.camera.target.y }), 15, 10, 14, Color.yellow);
-    rl.drawText(rl.textFormat("Camera zoom: %06.2f", .{data.camera.zoom}), 15, 30, 14, Color.yellow);
+    rl.drawText(rl.textFormat("Camera Target: %06.2f , %06.2f", .{ d.camera.target.x, d.camera.target.y }), 15, 10, 14, Color.yellow);
+    rl.drawText(rl.textFormat("Camera zoom: %06.2f", .{d.camera.zoom}), 15, 30, 14, Color.yellow);
     rl.endDrawing();
 }
 
 pub fn gameShutdown() void {
-    data.tiles_seen.deinit();
-    data.tileTypeSpriteIndex.deinit();
-    data.creatures.deinit(data.allocator);
-    rl.unloadTexture(data.tilesheet);
-    rl.unloadRenderTexture(data.fog_of_war);
-    rl.unloadSound(data.sounds[0]);
-    rl.stopMusicStream(data.music[0]);
-    rl.unloadMusicStream(data.music[0]);
+    d.tiles_seen.deinit();
+    d.tileTypeSpriteIndex.deinit();
+    d.creatures.deinit(d.allocator);
+    rl.unloadTexture(d.tilesheet);
+    rl.unloadRenderTexture(d.fog_of_war);
+    //rl.unloadSound(d.sounds[0]);
+    rl.stopMusicStream(d.music[0]);
+    rl.unloadMusicStream(d.music[0]);
     rl.closeAudioDevice();
     rl.closeWindow(); // Close window and OpenGL context
 }
 
 pub fn drawTile(x_pos: f32, y_pos: f32, texture_index_x: i32, texture_index_y: i32) void {
-    const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(texture_index_x * data.tile_width)), .y = @as(f32, @floatFromInt(texture_index_y * data.tile_height)), .width = @as(f32, @floatFromInt(data.tile_width)), .height = @as(f32, @floatFromInt(data.tile_height)) };
-    const dest_rect = rl.Rectangle{ .x = x_pos, .y = y_pos, .width = @as(f32, @floatFromInt(data.tile_width)), .height = @as(f32, @floatFromInt(data.tile_height)) };
+    const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(texture_index_x * d.tile_width)), .y = @as(f32, @floatFromInt(texture_index_y * d.tile_height)), .width = @as(f32, @floatFromInt(d.tile_width)), .height = @as(f32, @floatFromInt(d.tile_height)) };
+    const dest_rect = rl.Rectangle{ .x = x_pos, .y = y_pos, .width = @as(f32, @floatFromInt(d.tile_width)), .height = @as(f32, @floatFromInt(d.tile_height)) };
     const origin = rl.Vector2{ .x = 0, .y = 0 };
-    rl.drawTexturePro(data.tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
+    rl.drawTexturePro(d.tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
 }
 
 pub fn generateConnectedRooms() void {
-    data.tiles_seen.clearAndFree();
-    for (0..data.map_width * data.map_height) |i| {
-        if (mapIndexToX(i) == 0 or mapIndexToX(i) == data.map_width - 1 or mapIndexToY(i) == 0 or mapIndexToY(i) == data.map_height - 1) {
-            data.map[i] = data.TileType.nothing;
+    d.tiles_seen.clearAndFree();
+    for (0..d.map_width * d.map_height) |i| {
+        if (mapIndexToX(i) == 0 or mapIndexToX(i) == d.map_width - 1 or mapIndexToY(i) == 0 or mapIndexToY(i) == d.map_height - 1) {
+            d.map[i] = d.TileType.nothing;
         } else {
-            data.map[i] = data.TileType.wall;
+            d.map[i] = d.TileType.wall;
         }
     }
 
-    const bound_x: i32 = data.map_width - 1;
-    const bound_y: i32 = data.map_height - 1;
+    const bound_x: i32 = d.map_width - 1;
+    const bound_y: i32 = d.map_height - 1;
 
     const max_room_width: i32 = 10;
     const max_room_height: i32 = 10;
     const min_room_width: i32 = 4;
     const min_room_height: i32 = 4;
 
-    data.rooms = undefined;
+    d.rooms = undefined;
 
-    data.rooms[0] = data.Rectangle{ .x = rl.getRandomValue(1, bound_x - max_room_width), .y = rl.getRandomValue(1, bound_y - max_room_height), .width = rl.getRandomValue(min_room_width, max_room_width), .height = rl.getRandomValue(min_room_height, max_room_height) };
+    d.rooms[0] = d.Rectangle{ .x = rl.getRandomValue(1, bound_x - max_room_width), .y = rl.getRandomValue(1, bound_y - max_room_height), .width = rl.getRandomValue(min_room_width, max_room_width), .height = rl.getRandomValue(min_room_height, max_room_height) };
 
-    const actual_rooms: i32 = data.max_rooms;
+    const actual_rooms: i32 = d.max_rooms;
     var rooms_index: i32 = 1;
     var tries: i32 = 0;
 
-    while (rooms_index < actual_rooms and tries < data.max_rooms) {
+    while (rooms_index < actual_rooms and tries < d.max_rooms) {
         var room_overlaps = false;
 
         const new_room =
-            data.Rectangle{ .x = rl.getRandomValue(1, bound_x - max_room_width), .y = rl.getRandomValue(1, bound_y - max_room_height), .width = rl.getRandomValue(min_room_width, max_room_width), .height = rl.getRandomValue(min_room_height, max_room_height) };
+            d.Rectangle{ .x = rl.getRandomValue(1, bound_x - max_room_width), .y = rl.getRandomValue(1, bound_y - max_room_height), .width = rl.getRandomValue(min_room_width, max_room_width), .height = rl.getRandomValue(min_room_height, max_room_height) };
 
         for (0..@abs(rooms_index)) |i| {
-            const old_room = data.rooms[i];
+            const old_room = d.rooms[i];
 
             if (old_room.x + old_room.width >= new_room.x and
                 old_room.x <= new_room.x + new_room.width and
@@ -362,7 +362,7 @@ pub fn generateConnectedRooms() void {
         }
 
         if (!room_overlaps) {
-            data.rooms[@abs(rooms_index)] = new_room;
+            d.rooms[@abs(rooms_index)] = new_room;
             rooms_index += 1;
         }
 
@@ -370,16 +370,16 @@ pub fn generateConnectedRooms() void {
     }
 
     for (0..@abs(rooms_index)) |i| {
-        const this_room = data.rooms[i];
+        const this_room = d.rooms[i];
 
         for (@abs(this_room.x)..@abs(this_room.x + this_room.width)) |x| {
             for (@abs(this_room.y)..@abs(this_room.y + this_room.height)) |y| {
-                data.map[y * data.map_width + x] = .floor;
+                d.map[y * d.map_width + x] = .floor;
             }
         }
 
         if (i < rooms_index - 1) {
-            const next_room = data.rooms[i + 1];
+            const next_room = d.rooms[i + 1];
 
             const this_room_middle_x = this_room.x + @divTrunc(this_room.width, 2);
             const this_room_middle_y = this_room.y + @divTrunc(this_room.height, 2);
@@ -399,7 +399,7 @@ pub fn generateConnectedRooms() void {
                 } else {
                     start_x -= 1;
                 }
-                data.map[@abs(this_room_middle_y) * data.map_width + @abs(start_x)] = .floor;
+                d.map[@abs(this_room_middle_y) * d.map_width + @abs(start_x)] = .floor;
             }
             while (start_y != end_y) {
                 if (start_y < end_y) {
@@ -407,35 +407,35 @@ pub fn generateConnectedRooms() void {
                 } else {
                     start_y -= 1;
                 }
-                data.map[@abs(start_y) * data.map_width + @abs(next_room_middle_x)] = .floor;
+                d.map[@abs(start_y) * d.map_width + @abs(next_room_middle_x)] = .floor;
             }
         }
     }
 
-    data.player.x = data.rooms[0].x + @divTrunc((data.rooms[0].width), 2);
-    data.player.y = data.rooms[0].y + @divTrunc((data.rooms[0].height), 2);
+    d.player.x = d.rooms[0].x + @divTrunc((d.rooms[0].width), 2);
+    d.player.y = d.rooms[0].y + @divTrunc((d.rooms[0].height), 2);
 
-    rl.beginTextureMode(data.map_texture);
+    rl.beginTextureMode(d.map_texture);
     rl.clearBackground(.blank);
 
-    for (0..data.map_width) |x| {
-        for (0..data.map_height) |y| {
-            const tileType = data.map[y * data.map_width + x];
+    for (0..d.map_width) |x| {
+        for (0..d.map_height) |y| {
+            const tileType = d.map[y * d.map_width + x];
             if (tileType == .floor) {
-                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(spriteIndexToX(.floor) * data.tile_width)), .y = @as(f32, @floatFromInt(spriteIndexToY(.floor) * data.tile_height)), .width = @as(f32, @floatFromInt(data.tile_width)), .height = @as(f32, @floatFromInt(data.tile_height)) };
-                const dest_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(x * data.tile_width)), .y = @as(f32, @floatFromInt(y * data.tile_height)), .width = @as(f32, @floatFromInt(data.tile_width)), .height = @as(f32, @floatFromInt(data.tile_height)) };
+                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(spriteIndexToX(.floor) * d.tile_width)), .y = @as(f32, @floatFromInt(spriteIndexToY(.floor) * d.tile_height)), .width = @as(f32, @floatFromInt(d.tile_width)), .height = @as(f32, @floatFromInt(d.tile_height)) };
+                const dest_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(x * d.tile_width)), .y = @as(f32, @floatFromInt(y * d.tile_height)), .width = @as(f32, @floatFromInt(d.tile_width)), .height = @as(f32, @floatFromInt(d.tile_height)) };
                 const origin = rl.Vector2{ .x = 0, .y = 0 };
-                rl.drawTexturePro(data.tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
+                rl.drawTexturePro(d.tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
             } else if (tileType == .wall) {
-                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(spriteIndexToX(.wall) * data.tile_width)), .y = @as(f32, @floatFromInt(spriteIndexToY(.wall) * data.tile_height)), .width = @as(f32, @floatFromInt(data.tile_width)), .height = @as(f32, @floatFromInt(data.tile_height)) };
-                const dest_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(x * data.tile_width)), .y = @as(f32, @floatFromInt(y * data.tile_height)), .width = @as(f32, @floatFromInt(data.tile_width)), .height = @as(f32, @floatFromInt(data.tile_height)) };
+                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(spriteIndexToX(.wall) * d.tile_width)), .y = @as(f32, @floatFromInt(spriteIndexToY(.wall) * d.tile_height)), .width = @as(f32, @floatFromInt(d.tile_width)), .height = @as(f32, @floatFromInt(d.tile_height)) };
+                const dest_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(x * d.tile_width)), .y = @as(f32, @floatFromInt(y * d.tile_height)), .width = @as(f32, @floatFromInt(d.tile_width)), .height = @as(f32, @floatFromInt(d.tile_height)) };
                 const origin = rl.Vector2{ .x = 0, .y = 0 };
-                rl.drawTexturePro(data.tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
+                rl.drawTexturePro(d.tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
             } else if (tileType == .nothing) {
-                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(spriteIndexToX(.nothing) * data.tile_width)), .y = @as(f32, @floatFromInt(spriteIndexToY(.nothing) * data.tile_height)), .width = @as(f32, @floatFromInt(data.tile_width)), .height = @as(f32, @floatFromInt(data.tile_height)) };
-                const dest_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(x * data.tile_width)), .y = @as(f32, @floatFromInt(y * data.tile_height)), .width = @as(f32, @floatFromInt(data.tile_width)), .height = @as(f32, @floatFromInt(data.tile_height)) };
+                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(spriteIndexToX(.nothing) * d.tile_width)), .y = @as(f32, @floatFromInt(spriteIndexToY(.nothing) * d.tile_height)), .width = @as(f32, @floatFromInt(d.tile_width)), .height = @as(f32, @floatFromInt(d.tile_height)) };
+                const dest_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(x * d.tile_width)), .y = @as(f32, @floatFromInt(y * d.tile_height)), .width = @as(f32, @floatFromInt(d.tile_width)), .height = @as(f32, @floatFromInt(d.tile_height)) };
                 const origin = rl.Vector2{ .x = 0, .y = 0 };
-                rl.drawTexturePro(data.tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
+                rl.drawTexturePro(d.tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
             }
         }
     }
@@ -444,12 +444,12 @@ pub fn generateConnectedRooms() void {
 }
 
 pub fn movePlayer(x_offset: i32, y_offset: i32) void {
-    const new_x = data.player.x + x_offset;
-    const new_y = data.player.y + y_offset;
+    const new_x = d.player.x + x_offset;
+    const new_y = d.player.y + y_offset;
 
-    if (data.map[@abs(new_y) * data.map_width + @abs(new_x)] == .floor) {
-        data.player.x += x_offset;
-        data.player.y += y_offset;
+    if (d.map[@abs(new_y) * d.map_width + @abs(new_x)] == .floor) {
+        d.player.x += x_offset;
+        d.player.y += y_offset;
     }
 }
 
@@ -461,23 +461,23 @@ pub fn insideCircle(center_x: f32, center_y: f32, x: f32, y: f32, radius: f32) b
 }
 
 pub fn insideMap(x: i32, y: i32) bool {
-    return x >= 0 and x < data.map_width and y >= 0 and y < data.map_height;
+    return x >= 0 and x < d.map_width and y >= 0 and y < d.map_height;
 }
 
-pub fn spriteIndexToX(tileType: data.TileType) u16 {
-    const spriteIndex = data.tileTypeSpriteIndex.get(tileType);
+pub fn spriteIndexToX(tileType: d.TileType) u16 {
+    const spriteIndex = d.tileTypeSpriteIndex.get(tileType);
     return spriteIndex.? % 64;
 }
 
-pub fn spriteIndexToY(tileType: data.TileType) u16 {
-    const spriteIndex = data.tileTypeSpriteIndex.get(tileType);
+pub fn spriteIndexToY(tileType: d.TileType) u16 {
+    const spriteIndex = d.tileTypeSpriteIndex.get(tileType);
     return @divFloor(spriteIndex.?, 64);
 }
 
 pub fn mapIndexToX(index: usize) usize {
-    return index % data.map_width;
+    return index % d.map_width;
 }
 
 pub fn mapIndexToY(index: usize) usize {
-    return @divFloor(index, data.map_width);
+    return @divFloor(index, d.map_width);
 }
