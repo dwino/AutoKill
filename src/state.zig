@@ -51,6 +51,14 @@ pub fn gameStartup() anyerror!void {
     try tileTypeSpriteIndex.put(.floor, 309);
     try tileTypeSpriteIndex.put(.wall, 469);
 
+    try connectedRoomsMap();
+
+    camera = rl.Camera2D{ .target = rl.Vector2{ .x = @as(f32, @floatFromInt(player.x * cs.tile_width)), .y = @as(f32, @floatFromInt(player.y * cs.tile_height)) }, .offset = rl.Vector2{ .x = @as(f32, @floatFromInt(cs.screen_width / 2)) - cs.tile_width * 0.5, .y = @as(f32, @floatFromInt(cs.screen_height / 2)) - cs.tile_height * 0.5 }, .rotation = 0.0, .zoom = 1.0 };
+
+    rl.playMusicStream(music[0]);
+}
+
+pub fn connectedRoomsMap() anyerror!void {
     tiles_seen.clearAndFree();
 
     rooms = l.generateNonOverlappingRooms();
@@ -67,11 +75,9 @@ pub fn gameStartup() anyerror!void {
 
     const new_creatures_slice = try l.populateMap(rooms, cs.allocator);
 
+    creatures.clearAndFree(cs.allocator);
+
     try creatures.appendSlice(cs.allocator, new_creatures_slice);
-
-    camera = rl.Camera2D{ .target = rl.Vector2{ .x = @as(f32, @floatFromInt(player.x * cs.tile_width)), .y = @as(f32, @floatFromInt(player.y * cs.tile_height)) }, .offset = rl.Vector2{ .x = @as(f32, @floatFromInt(cs.screen_width / 2)) - cs.tile_width * 0.5, .y = @as(f32, @floatFromInt(cs.screen_height / 2)) - cs.tile_height * 0.5 }, .rotation = 0.0, .zoom = 1.0 };
-
-    rl.playMusicStream(music[0]);
 }
 
 pub fn storeMapTexture() void {
@@ -101,4 +107,85 @@ pub fn storeMapTexture() void {
     }
 
     rl.endTextureMode();
+}
+
+pub fn gameUpdate() anyerror!void {
+    rl.updateMusicStream(music[0]);
+
+    const fov_to_int = @as(i32, @intFromFloat(player.fov)) + 2;
+
+    var start_x = player.x - fov_to_int;
+
+    var start_y = player.y - fov_to_int;
+
+    if (start_x < 0) {
+        start_x = 0;
+    }
+
+    if (start_y < 0) {
+        start_y = 0;
+    }
+
+    for (@abs(start_x)..@abs(player.x + fov_to_int)) |x| {
+        for (@abs(start_y)..@abs(player.y + fov_to_int)) |y| {
+            if (l.insideMap(@as(i32, @intCast(x)), @as(i32, @intCast(y))) and l.insideCircle(@floatFromInt(player.x), @floatFromInt(player.y), @floatFromInt(x), @floatFromInt(y), player.fov)) {
+                try tiles_seen.put(@abs(y * cs.map_width + x), {});
+            }
+        }
+    }
+
+    if (rl.isKeyPressed(.left)) {
+        movePlayer(-1, 0);
+    } else if (rl.isKeyPressed(.right)) {
+        movePlayer(1, 0);
+    } else if (rl.isKeyPressed(.up)) {
+        movePlayer(0, -1);
+    } else if (rl.isKeyPressed(.down)) {
+        movePlayer(0, 1);
+    }
+
+    if (rl.isKeyDown(.kp_4)) {
+        movePlayer(-1, 0);
+    }
+    if (rl.isKeyDown(.kp_6)) {
+        movePlayer(1, 0);
+    }
+    if (rl.isKeyDown(.kp_8)) {
+        movePlayer(0, -1);
+    }
+    if (rl.isKeyDown(.kp_2)) {
+        movePlayer(0, 1);
+    }
+
+    if (rl.isKeyPressed(.e)) {
+        player.x = rooms[0].x + @divTrunc(rooms[0].width, 2);
+        player.y = rooms[0].y + @divTrunc(rooms[0].height, 2);
+    }
+
+    const wheel = rl.getMouseWheelMove();
+
+    if (wheel != 0) {
+        const zoomIncrement = 0.125;
+        camera.zoom += (wheel * zoomIncrement);
+
+        if (camera.zoom < 0.125) {
+            camera.zoom = 0.125;
+        }
+        if (camera.zoom > 5.0) {
+            camera.zoom = 5.0;
+        }
+    }
+
+    camera.target = rl.Vector2{ .x = @as(f32, @floatFromInt(player.x * cs.tile_width)), .y = @as(f32, @floatFromInt(player.y * cs.tile_height)) };
+    camera.offset = rl.Vector2{ .x = @as(f32, @floatFromInt(cs.screen_width / 2)) - cs.tile_width * camera.zoom * 0.5, .y = @as(f32, @floatFromInt(cs.screen_height / 2)) - cs.tile_height * camera.zoom * 0.5 };
+}
+
+pub fn movePlayer(x_offset: i32, y_offset: i32) void {
+    const new_x = player.x + x_offset;
+    const new_y = player.y + y_offset;
+
+    if (map[@abs(new_y) * cs.map_width + @abs(new_x)] == .floor) {
+        player.x += x_offset;
+        player.y += y_offset;
+    }
 }

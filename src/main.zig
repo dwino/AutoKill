@@ -9,7 +9,7 @@ pub fn main() anyerror!void {
     defer l.gameShutdown();
 
     while (!rl.windowShouldClose()) {
-        try l.gameUpdate();
+        try s.gameUpdate();
         l.gameRender();
 
         std.debug.print("frametime: {}\n", .{rl.getFrameTime() * 1000});
