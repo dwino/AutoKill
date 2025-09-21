@@ -25,6 +25,7 @@ pub var player: dt.Entity = undefined;
 
 pub var creatures: std.ArrayListUnmanaged(dt.Entity) = .empty;
 
+// GAME STARTUP
 pub fn gameStartup() anyerror!void {
     rl.initWindow(
         cs.screen_width,
@@ -88,17 +89,17 @@ pub fn storeMapTexture() void {
         for (0..cs.map_height) |y| {
             const tileType = map[y * cs.map_width + x];
             if (tileType == .floor) {
-                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(l.spriteIndexToX(.floor) * cs.tile_width)), .y = @as(f32, @floatFromInt(l.spriteIndexToY(.floor) * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
+                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(l.spriteIndexToX(getTileSpriteIndex(.floor)) * cs.tile_width)), .y = @as(f32, @floatFromInt(l.spriteIndexToY(getTileSpriteIndex(.floor)) * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
                 const dest_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(x * cs.tile_width)), .y = @as(f32, @floatFromInt(y * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
                 const origin = rl.Vector2{ .x = 0, .y = 0 };
                 rl.drawTexturePro(tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
             } else if (tileType == .wall) {
-                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(l.spriteIndexToX(.wall) * cs.tile_width)), .y = @as(f32, @floatFromInt(l.spriteIndexToY(.wall) * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
+                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(l.spriteIndexToX(getTileSpriteIndex(.wall)) * cs.tile_width)), .y = @as(f32, @floatFromInt(l.spriteIndexToY(getTileSpriteIndex(.wall)) * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
                 const dest_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(x * cs.tile_width)), .y = @as(f32, @floatFromInt(y * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
                 const origin = rl.Vector2{ .x = 0, .y = 0 };
                 rl.drawTexturePro(tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
             } else if (tileType == .nothing) {
-                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(l.spriteIndexToX(.nothing) * cs.tile_width)), .y = @as(f32, @floatFromInt(l.spriteIndexToY(.nothing) * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
+                const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(l.spriteIndexToX(getTileSpriteIndex(.nothing)) * cs.tile_width)), .y = @as(f32, @floatFromInt(l.spriteIndexToY(getTileSpriteIndex(.nothing)) * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
                 const dest_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(x * cs.tile_width)), .y = @as(f32, @floatFromInt(y * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
                 const origin = rl.Vector2{ .x = 0, .y = 0 };
                 rl.drawTexturePro(tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
@@ -108,6 +109,13 @@ pub fn storeMapTexture() void {
 
     rl.endTextureMode();
 }
+
+pub fn getTileSpriteIndex(tileType: dt.TileType) u16 {
+    return tileTypeSpriteIndex.get(tileType).?;
+}
+//////////
+
+// GAME UPDATE
 
 pub fn gameUpdate() anyerror!void {
     rl.updateMusicStream(music[0]);
@@ -188,4 +196,109 @@ pub fn movePlayer(x_offset: i32, y_offset: i32) void {
         player.x += x_offset;
         player.y += y_offset;
     }
+}
+///////////
+
+// GAME RENDER
+pub fn gameRender() void {
+    rl.beginTextureMode(fog_of_war);
+    rl.clearBackground(.blank);
+
+    // render visible part of map tile by tile
+
+    var start_x = player.x - 80;
+    var end_x = player.x + 80;
+
+    var start_y = player.y - 50;
+    var end_y = player.y + 50;
+
+    if (start_x < 0) {
+        start_x = 0;
+    }
+    if (end_x > cs.map_width) {
+        end_x = cs.map_width;
+    }
+    if (start_y < 0) {
+        start_y = 0;
+    }
+    if (end_y > cs.map_height) {
+        end_y = cs.map_height;
+    }
+
+    var x = start_x;
+
+    while (x <= end_x) {
+        var y = start_y;
+        while (y <= end_y) {
+            if (!l.insideCircle(@floatFromInt(player.x), @floatFromInt(player.y), @floatFromInt(x), @floatFromInt(y), player.fov)) {
+                if (x > 0 and y > 0 and tiles_seen.contains(@abs(y) * cs.map_width + @abs(x))) {
+                    rl.drawRectangle(@intCast(x), @intCast(y), 1, 1, rl.fade(.black, 0.5));
+                } else {
+                    rl.drawRectangle(@intCast(x), @intCast(y), 1, 1, .black);
+                }
+            }
+
+            y += 1;
+        }
+        x += 1;
+    }
+
+    rl.endTextureMode();
+
+    rl.beginDrawing();
+    rl.clearBackground(Color.black);
+    rl.beginMode2D(camera);
+
+    // render map
+    const source_rect_map = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = @as(f32, @floatFromInt(map_texture.texture.width)), .height = -@as(f32, @floatFromInt(map_texture.texture.height)) };
+    const dest_rect_map = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = @as(f32, @floatFromInt(cs.map_width * cs.tile_width)), .height = @as(f32, @floatFromInt(cs.map_height * cs.tile_height)) };
+    const origin_map = rl.Vector2{ .x = 0, .y = 0 };
+    rl.drawTexturePro(map_texture.texture, source_rect_map, dest_rect_map, origin_map, 0.0, .white);
+
+    // render creatures
+    for (creatures.items) |creature| {
+        drawTile(@as(f32, @floatFromInt(creature.x)), @as(f32, @floatFromInt(creature.y)), 8, 94);
+    }
+
+    // render player
+    drawTile(camera.target.x, camera.target.y, 36, 84);
+    drawTile(camera.target.x, camera.target.y, 5, 80);
+    drawTile(camera.target.x, camera.target.y, 50, 82);
+    drawTile(camera.target.x, camera.target.y, 34, 90);
+
+    const source_rect_fog = rl.Rectangle{ .x = 0.0, .y = 0.0, .width = @as(f32, @floatFromInt(fog_of_war.texture.width)), .height = -@as(f32, @floatFromInt(fog_of_war.texture.height)) };
+
+    rl.drawTexturePro(fog_of_war.texture, source_rect_fog, dest_rect_map, origin_map, 0.0, .white);
+
+    rl.endMode2D();
+
+    rl.drawRectangle(5, 5, 330, 120, Color.fade(Color.sky_blue, 0.5));
+    rl.drawRectangleLines(5, 5, 330, 120, Color.blue);
+
+    rl.drawText(rl.textFormat("Camera Target: %06.2f , %06.2f", .{ camera.target.x, camera.target.y }), 15, 10, 14, Color.yellow);
+    rl.drawText(rl.textFormat("Camera zoom: %06.2f", .{camera.zoom}), 15, 30, 14, Color.yellow);
+    rl.endDrawing();
+}
+
+pub fn drawTile(x_pos: f32, y_pos: f32, texture_index_x: i32, texture_index_y: i32) void {
+    const source_rect = rl.Rectangle{ .x = @as(f32, @floatFromInt(texture_index_x * cs.tile_width)), .y = @as(f32, @floatFromInt(texture_index_y * cs.tile_height)), .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
+    const dest_rect = rl.Rectangle{ .x = x_pos, .y = y_pos, .width = @as(f32, @floatFromInt(cs.tile_width)), .height = @as(f32, @floatFromInt(cs.tile_height)) };
+    const origin = rl.Vector2{ .x = 0, .y = 0 };
+    rl.drawTexturePro(tilesheet, source_rect, dest_rect, origin, 0.0, Color.white);
+}
+
+///////////
+
+// GAME SHUTDOWN
+pub fn gameShutdown() void {
+    tiles_seen.deinit();
+    tileTypeSpriteIndex.deinit();
+    creatures.deinit(cs.allocator);
+    rl.unloadTexture(tilesheet);
+    rl.unloadRenderTexture(fog_of_war);
+    //rl.unloadSound(d.sounds[0]);
+    rl.stopMusicStream(music[0]);
+    rl.unloadMusicStream(music[0]);
+    rl.closeAudioDevice();
+    rl.closeWindow(); // Close window and OpenGL context
 }

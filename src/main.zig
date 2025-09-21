@@ -6,11 +6,11 @@ const l = @import("logic.zig");
 
 pub fn main() anyerror!void {
     try s.gameStartup();
-    defer l.gameShutdown();
+    defer s.gameShutdown();
 
     while (!rl.windowShouldClose()) {
         try s.gameUpdate();
-        l.gameRender();
+        s.gameRender();
 
         std.debug.print("frametime: {}\n", .{rl.getFrameTime() * 1000});
     }
