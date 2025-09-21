@@ -5,7 +5,7 @@ const s = @import("state.zig");
 const l = @import("logic.zig");
 
 pub fn main() anyerror!void {
-    try l.gameStartup();
+    try s.gameStartup();
     defer l.gameShutdown();
 
     while (!rl.windowShouldClose()) {
