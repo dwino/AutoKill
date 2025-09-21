@@ -1,7 +1,7 @@
 const std = @import("std");
 const rl = @import("raylib");
 const Color = rl.Color;
-const d = @import("data.zig");
+const s = @import("state.zig");
 const l = @import("logic.zig");
 
 pub fn main() anyerror!void {
