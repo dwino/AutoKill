@@ -4,9 +4,9 @@ const rl = @import("raylib");
 pub const screen_width = 1280;
 pub const screen_height = 720;
 
-pub const map_width = 500;
-pub const map_height = 500;
-pub const max_rooms = 3000;
+pub const map_width = 100;
+pub const map_height = 100;
+pub const max_rooms = 50;
 
 pub const tile_width = 32;
 pub const tile_height = 32;
