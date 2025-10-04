@@ -182,7 +182,7 @@ pub fn populateMap(rooms: [cs.max_rooms]dt.Rectangle) anyerror!dt.Creatures {
     };
 
     for (0..5) |i| {
-        new_creatures.max_index = 4;
+        new_creatures.max_index = 5;
         new_creatures.id[i] = i;
         new_creatures.position[i] = dt.Position{ .x = rooms[1].x + @as(i32, @intCast(i)), .y = rooms[1].y + @as(i32, @intCast(i)) };
         new_creatures.health[i] = 100;

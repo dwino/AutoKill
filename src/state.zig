@@ -51,7 +51,7 @@ pub fn gameStartup() anyerror!void {
     tilesheet = try rl.loadTextureFromImage(image);
     rl.unloadImage(image);
 
-    // d.sounds[0] = try rl.loadSound("Audio/footstep00.ogg");
+    sounds[0] = try rl.loadSound("Audio/burp.wav");
     music[0] = try rl.loadMusicStream("Music/metal1.mp3");
 
     map_texture = try rl.loadRenderTexture(cs.map_width * cs.tile_width, cs.map_height * cs.tile_height);
@@ -242,6 +242,7 @@ pub fn movePlayerOrAttack(x_offset: i32, y_offset: i32) void {
         if (position.x == new_x and position.y == new_y) {
             attacked = true;
             creatures.health[id] -= 20;
+            rl.playSound(sounds[0]);
         }
     }
 
@@ -349,7 +350,7 @@ pub fn gameShutdown() void {
     tileTypeSpriteIndex.deinit();
     rl.unloadTexture(tilesheet);
     rl.unloadRenderTexture(fog_of_war);
-    //rl.unloadSound(d.sounds[0]);
+    rl.unloadSound(sounds[0]);
     rl.stopMusicStream(music[0]);
     rl.unloadMusicStream(music[0]);
     rl.closeAudioDevice();
