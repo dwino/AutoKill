@@ -5,25 +5,38 @@ const cs = @import("constants.zig");
 const dt = @import("datatypes.zig");
 const l = @import("logic.zig");
 
-pub var tilesheet: rl.Texture2D = undefined;
+var tilesheet: rl.Texture2D = undefined;
 
-pub var map_texture: rl.RenderTexture = undefined;
-pub var fog_of_war: rl.RenderTexture = undefined;
+var map_texture: rl.RenderTexture = undefined;
+var fog_of_war: rl.RenderTexture = undefined;
 
-pub var sounds: [cs.max_sounds]rl.Sound = undefined;
+var sounds: [cs.max_sounds]rl.Sound = undefined;
 
-pub var music: [cs.max_music]rl.Music = undefined;
+var music: [cs.max_music]rl.Music = undefined;
 
-pub var tileTypeSpriteIndex = std.AutoHashMap(dt.TileType, u16).init(cs.allocator);
+var tileTypeSpriteIndex = std.AutoHashMap(dt.TileType, u16).init(cs.allocator);
 
-pub var map: [cs.map_width * cs.map_width]dt.TileType = undefined;
-pub var rooms: [cs.max_rooms]dt.Rectangle = undefined;
-pub var tiles_seen = std.AutoArrayHashMap(usize, void).init(cs.allocator);
+var map: [cs.map_width * cs.map_width]dt.TileType = undefined;
+var next_map: [cs.map_width * cs.map_width]dt.TileType = undefined;
 
-pub var camera: rl.Camera2D = undefined;
-pub var player: dt.Entity = undefined;
+var rooms: [cs.max_rooms]dt.Rectangle = undefined;
+var next_rooms: [cs.max_rooms]dt.Rectangle = undefined;
 
-pub var creatures: std.ArrayListUnmanaged(dt.Entity) = .empty;
+var tiles_seen = std.AutoArrayHashMap(usize, void).init(cs.allocator);
+
+var camera: rl.Camera2D = undefined;
+var player: dt.Position = undefined;
+
+// var creatures: std.ArrayListUnmanaged(dt.Position) = .empty;
+
+var creatures = dt.Creatures{
+    .max_index = undefined,
+    .id = undefined,
+    .position = undefined,
+    .health = undefined,
+};
+
+var thread: std.Thread = undefined;
 
 // GAME STARTUP
 pub fn gameStartup() anyerror!void {
@@ -54,6 +67,10 @@ pub fn gameStartup() anyerror!void {
 
     try connectedRoomsMap();
 
+    thread = try std.Thread.spawn(.{}, prepareNextMap, .{});
+
+    // thread = try std.Thread.spawn(.{}, prepareNextMap(), .{});
+
     camera = rl.Camera2D{ .target = rl.Vector2{ .x = @as(f32, @floatFromInt(player.x * cs.tile_width)), .y = @as(f32, @floatFromInt(player.y * cs.tile_height)) }, .offset = rl.Vector2{ .x = @as(f32, @floatFromInt(cs.screen_width / 2)) - cs.tile_width * 0.5, .y = @as(f32, @floatFromInt(cs.screen_height / 2)) - cs.tile_height * 0.5 }, .rotation = 0.0, .zoom = 1.0 };
 
     rl.playMusicStream(music[0]);
@@ -62,23 +79,41 @@ pub fn gameStartup() anyerror!void {
 pub fn connectedRoomsMap() anyerror!void {
     tiles_seen.clearAndFree();
 
-    rooms = l.generateNonOverlappingRooms();
+    rooms = l.generateNonOverlappingRoomsInternalRNG();
 
     map = l.prepareMapAndConnectRooms(rooms);
 
-    player = dt.Entity{
+    player = dt.Position{
         .x = rooms[0].x + @divTrunc(rooms[0].width, 2),
         .y = rooms[0].y + @divTrunc(rooms[0].height, 2),
-        .fov = 6.55,
     };
 
     storeMapTexture();
 
-    const new_creatures_slice = try l.populateMap(rooms, cs.allocator);
+    creatures = try l.populateMap(rooms);
+}
 
-    creatures.clearAndFree(cs.allocator);
+pub fn prepareNextMap() void {
+    std.debug.print("this is a new thread", .{});
+    next_rooms = l.generateNonOverlappingRoomsInternalRNG();
+    next_map = l.prepareMapAndConnectRooms(next_rooms);
+}
 
-    try creatures.appendSlice(cs.allocator, new_creatures_slice);
+pub fn activateNextMap() anyerror!void {
+    tiles_seen.clearAndFree();
+
+    rooms = next_rooms;
+
+    map = next_map;
+
+    player = dt.Position{
+        .x = rooms[0].x + @divTrunc(rooms[0].width, 2),
+        .y = rooms[0].y + @divTrunc(rooms[0].height, 2),
+    };
+
+    storeMapTexture();
+
+    creatures = try l.populateMap(rooms);
 }
 
 pub fn storeMapTexture() void {
@@ -120,7 +155,7 @@ pub fn getTileSpriteIndex(tileType: dt.TileType) u16 {
 pub fn gameUpdate() anyerror!void {
     rl.updateMusicStream(music[0]);
 
-    const fov_to_int = @as(i32, @intFromFloat(player.fov)) + 2;
+    const fov_to_int = @as(i32, @intFromFloat(cs.player_fov)) + 2;
 
     var start_x = player.x - fov_to_int;
 
@@ -136,38 +171,44 @@ pub fn gameUpdate() anyerror!void {
 
     for (@abs(start_x)..@abs(player.x + fov_to_int)) |x| {
         for (@abs(start_y)..@abs(player.y + fov_to_int)) |y| {
-            if (l.insideMap(@as(i32, @intCast(x)), @as(i32, @intCast(y))) and l.insideCircle(@floatFromInt(player.x), @floatFromInt(player.y), @floatFromInt(x), @floatFromInt(y), player.fov)) {
+            if (l.insideMap(@as(i32, @intCast(x)), @as(i32, @intCast(y))) and l.insideCircle(@floatFromInt(player.x), @floatFromInt(player.y), @floatFromInt(x), @floatFromInt(y), cs.player_fov)) {
                 try tiles_seen.put(@abs(y * cs.map_width + x), {});
             }
         }
     }
 
     if (rl.isKeyPressed(.left)) {
-        movePlayer(-1, 0);
+        movePlayerOrAttack(-1, 0);
     } else if (rl.isKeyPressed(.right)) {
-        movePlayer(1, 0);
+        movePlayerOrAttack(1, 0);
     } else if (rl.isKeyPressed(.up)) {
-        movePlayer(0, -1);
+        movePlayerOrAttack(0, -1);
     } else if (rl.isKeyPressed(.down)) {
-        movePlayer(0, 1);
+        movePlayerOrAttack(0, 1);
     }
 
     if (rl.isKeyDown(.kp_4)) {
-        movePlayer(-1, 0);
+        movePlayerOrAttack(-1, 0);
     }
     if (rl.isKeyDown(.kp_6)) {
-        movePlayer(1, 0);
+        movePlayerOrAttack(1, 0);
     }
     if (rl.isKeyDown(.kp_8)) {
-        movePlayer(0, -1);
+        movePlayerOrAttack(0, -1);
     }
     if (rl.isKeyDown(.kp_2)) {
-        movePlayer(0, 1);
+        movePlayerOrAttack(0, 1);
     }
 
-    if (rl.isKeyPressed(.e)) {
-        player.x = rooms[0].x + @divTrunc(rooms[0].width, 2);
-        player.y = rooms[0].y + @divTrunc(rooms[0].height, 2);
+    if (rl.isKeyPressed(.j)) {
+        thread.join();
+        try activateNextMap();
+    }
+    if (rl.isKeyPressed(.s)) {
+        thread = try std.Thread.spawn(.{}, prepareNextMap, .{});
+    }
+    if (rl.isKeyPressed(.r)) {
+        try connectedRoomsMap();
     }
 
     const wheel = rl.getMouseWheelMove();
@@ -188,15 +229,28 @@ pub fn gameUpdate() anyerror!void {
     camera.offset = rl.Vector2{ .x = @as(f32, @floatFromInt(cs.screen_width / 2)) - cs.tile_width * camera.zoom * 0.5, .y = @as(f32, @floatFromInt(cs.screen_height / 2)) - cs.tile_height * camera.zoom * 0.5 };
 }
 
-pub fn movePlayer(x_offset: i32, y_offset: i32) void {
+pub fn movePlayerOrAttack(x_offset: i32, y_offset: i32) void {
     const new_x = player.x + x_offset;
     const new_y = player.y + y_offset;
+    std.debug.print("player position: {},{}\n", .{ new_x, new_x });
 
-    if (map[@abs(new_y) * cs.map_width + @abs(new_x)] == .floor) {
+    var attacked = false;
+    for (0..creatures.max_index) |id| {
+        const position = creatures.position[id];
+        std.debug.print("enemy {} position: {},{}\n", .{ id, position.x, position.y });
+
+        if (position.x == new_x and position.y == new_y) {
+            attacked = true;
+            creatures.health[id] -= 20;
+        }
+    }
+
+    if (!attacked and map[@abs(new_y) * cs.map_width + @abs(new_x)] == .floor) {
         player.x += x_offset;
         player.y += y_offset;
     }
 }
+
 ///////////
 
 // GAME RENDER
@@ -230,7 +284,7 @@ pub fn gameRender() void {
     while (x <= end_x) {
         var y = start_y;
         while (y <= end_y) {
-            if (!l.insideCircle(@floatFromInt(player.x), @floatFromInt(player.y), @floatFromInt(x), @floatFromInt(y), player.fov)) {
+            if (!l.insideCircle(@floatFromInt(player.x), @floatFromInt(player.y), @floatFromInt(x), @floatFromInt(y), cs.player_fov)) {
                 if (x > 0 and y > 0 and tiles_seen.contains(@abs(y) * cs.map_width + @abs(x))) {
                     rl.drawRectangle(@intCast(x), @intCast(y), 1, 1, rl.fade(.black, 0.5));
                 } else {
@@ -256,8 +310,8 @@ pub fn gameRender() void {
     rl.drawTexturePro(map_texture.texture, source_rect_map, dest_rect_map, origin_map, 0.0, .white);
 
     // render creatures
-    for (creatures.items) |creature| {
-        drawTile(@as(f32, @floatFromInt(creature.x)), @as(f32, @floatFromInt(creature.y)), 8, 94);
+    for (creatures.position) |position| {
+        drawTile(@as(f32, @floatFromInt(position.x * cs.tile_width)), @as(f32, @floatFromInt(position.y * cs.tile_height)), 8, 94);
     }
 
     // render player
@@ -293,7 +347,6 @@ pub fn drawTile(x_pos: f32, y_pos: f32, texture_index_x: i32, texture_index_y: i
 pub fn gameShutdown() void {
     tiles_seen.deinit();
     tileTypeSpriteIndex.deinit();
-    creatures.deinit(cs.allocator);
     rl.unloadTexture(tilesheet);
     rl.unloadRenderTexture(fog_of_war);
     //rl.unloadSound(d.sounds[0]);

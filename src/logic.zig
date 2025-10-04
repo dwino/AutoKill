@@ -3,6 +3,7 @@ const rl = @import("raylib");
 const Color = rl.Color;
 const cs = @import("constants.zig");
 const dt = @import("datatypes.zig");
+const rnd = std.Random;
 
 // HELPERS
 
@@ -68,7 +69,48 @@ pub fn generateNonOverlappingRooms() [cs.max_rooms]dt.Rectangle {
         }
 
         tries += 1;
-        std.debug.print("generateRooms() tries: {}", .{tries});
+        std.debug.print("generateRooms() tries: {}\n", .{tries});
+    }
+
+    return new_rooms;
+}
+
+pub fn generateNonOverlappingRoomsInternalRNG() [cs.max_rooms]dt.Rectangle {
+    var random = rnd.DefaultPrng.init(@as(u64, @bitCast(std.time.milliTimestamp())));
+    const rng = random.random();
+    var new_rooms: [cs.max_rooms]dt.Rectangle = undefined;
+
+    new_rooms[0] = dt.Rectangle{ .x = rng.intRangeAtMost(i32, cs.bound_x_left, cs.bound_x_right - cs.max_room_width), .y = rng.intRangeAtMost(i32, cs.bound_y_up, cs.bound_y_down - cs.max_room_height), .width = rng.intRangeAtMost(i32, cs.min_room_width, cs.max_room_width), .height = rng.intRangeAtMost(i32, cs.min_room_height, cs.max_room_height) };
+
+    const actual_rooms: i32 = cs.max_rooms;
+    var rooms_index: usize = 1;
+    var tries: usize = 0;
+
+    while (rooms_index < actual_rooms) {
+        var room_overlaps = false;
+
+        const new_room =
+            dt.Rectangle{ .x = rng.intRangeAtMost(i32, cs.bound_x_left, cs.bound_x_right - cs.max_room_width), .y = rng.intRangeAtMost(i32, cs.bound_y_up, cs.bound_y_down - cs.max_room_height), .width = rng.intRangeAtMost(i32, cs.min_room_width, cs.max_room_width), .height = rng.intRangeAtMost(i32, cs.min_room_height, cs.max_room_height) };
+
+        for (0..rooms_index) |i| {
+            const old_room = new_rooms[i];
+
+            if (old_room.x + old_room.width >= new_room.x and
+                old_room.x <= new_room.x + new_room.width and
+                old_room.y + old_room.height >= new_room.y and
+                old_room.y <= new_room.y + new_room.height)
+            {
+                room_overlaps = true;
+            }
+        }
+
+        if (!room_overlaps) {
+            new_rooms[rooms_index] = new_room;
+            rooms_index += 1;
+        }
+
+        tries += 1;
+        std.debug.print("generateRooms() tries: {}\n", .{tries});
     }
 
     return new_rooms;
@@ -131,13 +173,21 @@ pub fn prepareMapAndConnectRooms(rooms: [cs.max_rooms]dt.Rectangle) [cs.map_widt
     return new_map;
 }
 
-pub fn populateMap(rooms: [cs.max_rooms]dt.Rectangle, allocator: std.mem.Allocator) anyerror![]dt.Entity {
-    var new_creatures: std.ArrayListUnmanaged(dt.Entity) = .empty;
+pub fn populateMap(rooms: [cs.max_rooms]dt.Rectangle) anyerror!dt.Creatures {
+    var new_creatures = dt.Creatures{
+        .max_index = undefined,
+        .id = undefined,
+        .position = undefined,
+        .health = undefined,
+    };
 
     for (0..5) |i| {
-        try new_creatures.append(allocator, dt.Entity{ .x = rooms[1].x * cs.tile_width + @as(i32, @intCast(i)) * cs.tile_width, .y = rooms[1].y * cs.tile_height + @as(i32, @intCast(i)) * cs.tile_height, .fov = 0.0 });
+        new_creatures.max_index = 4;
+        new_creatures.id[i] = i;
+        new_creatures.position[i] = dt.Position{ .x = rooms[1].x + @as(i32, @intCast(i)), .y = rooms[1].y + @as(i32, @intCast(i)) };
+        new_creatures.health[i] = 100;
     }
 
-    return new_creatures.toOwnedSlice(allocator);
+    return new_creatures;
 }
 //////////
